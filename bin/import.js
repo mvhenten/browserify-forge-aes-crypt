@@ -2,13 +2,16 @@
 
 var fs = require('fs'),
     esp = require('esprima'),
+    path = require('path'),
     _ = require('lodash'),
     escodegen = require('escodegen');
 
-var MODULE_NAME = process.argv[2],
-    TARGET_FILE = './lib/' + MODULE_NAME + '.js';
+var SOURCE = process.argv[2],
+    TARGET = process.argv[3];
 
-var src = fs.readFileSync('./js/' + MODULE_NAME + '.js');
+var MODULE_NAME = path.basename(TARGET).replace(path.extname(TARGET), '');
+
+var src = fs.readFileSync(SOURCE);
 var obj = esp.parse(src.toString());
 
 function genExpression(name) {
@@ -72,19 +75,5 @@ search(query, obj, function(result) {
 
     transform(body, MODULE_NAME);
 
-    fs.writeFileSync(TARGET_FILE, escodegen.generate(body));
-
+    fs.writeFileSync(TARGET, escodegen.generate(body));
 });
-
-
-//walker( obj, function( result ){
-//    console.log( escodegen.generate( result ) );
-//
-////    console.log( JSON.stringify(obj) );
-////    console.log( result );
-//});
-
-
-//console.log( JSON.stringify(obj) );
-
-//console.log( escodegen.generate( obj ) );
