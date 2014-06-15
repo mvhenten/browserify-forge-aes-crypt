@@ -31,6 +31,7 @@ Please look at [forge](https://github.com/digitalbazaar/forge) for any real poin
 what I currently use. If something doesn't work it's propably my fault. Always use the official
 distrobution as a reference.
 
+```javascript
     var forge = require('browserify-forge-aes-crypt');
 
     var Demo = {
@@ -63,6 +64,7 @@ distrobution as a reference.
             return cipher.output;
         },
     };
+```
 
 ## building
 
