@@ -68,12 +68,12 @@ distrobution as a reference.
 
 ## building
 
-How does this work? The `forge` repository is cloned, and a simple [script](./lib/import.js) is
+How does this work? The `forge` repository is cloned, and a simple [script](./bin/import.js) is
 used to rewrite sources from that repository into node modules that can be browserified.
 
 The real magic is using `esprima`, I rewrite the bits that I understand and apply a small number
 of fixes afterwards.
 
-see:
+see the accompanying [bash script](./import.sh):
 
     ./import.sh
