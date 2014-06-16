@@ -12,7 +12,11 @@ var SOURCE = process.argv[2],
 var MODULE_NAME = path.basename(TARGET).replace(path.extname(TARGET), '');
 
 var src = fs.readFileSync(SOURCE);
-var obj = esp.parse(src.toString());
+
+// hacky fix: remove references to forge.disableNativeCode
+src = src.toString().replace(/[!]?forge.disableNativeCode\s(&&|\|\|)/, '');
+
+var obj = esp.parse(src);
 
 function mkRequire(name) {
     return {
@@ -51,6 +55,17 @@ function transform(obj, moduleName) {
     _.each(obj, function(value, key) {
         if (typeof value !== 'object' || !value) return;
 
+        /**
+         * 1. First check assignment expressions.
+         *
+         * 1.1 if the left side is something like "forge.{something}"
+         * this becomes var {something} = right side
+         *
+         * 1.2 if the left side is something like "forge.{first}.{second}"
+         * this becomes something like {first}.{second} = right side
+         * additionally, any {first} that matches the moduleName becomes simply module.exports
+         *
+         */
         if (value.type == 'AssignmentExpression') {
 
             if (value.left.type == 'MemberExpression' && value.left.object.name == 'forge') {
@@ -69,14 +84,25 @@ function transform(obj, moduleName) {
                     name: name == moduleName ? 'module.exports' : name
                 };
 
-                transform(value.right, moduleName);
+                transform(value, moduleName);
                 return;
             }
         }
 
+        /**
+         * 2. This is not an assignment, if it's not an MemberExpression of forge.{something},
+         *
+         * simply walk it's elements and return.
+         */
         if (value.type !== 'MemberExpression' || (value.object && value.object.name !== 'forge'))
             return transform(value, moduleName);
 
+        /**
+         * 3. This must be a MemberExpression. Check if we're trying to get an object property
+         *
+         * This catches everythign that looks like forge.{something} and converts this
+         * into a require({something}), or module.exports if it's forge.{moduleName}
+         */
         if (value.property.type === 'Identifier') {
             if (key == 'left' || key == 'object') {
                 if (value.property.name == moduleName)
@@ -105,6 +131,9 @@ var query = {
     name: 'initModule'
 };
 
+/**
+ * First, find the function initModule. We'll only use the body of this function.
+ */
 search(query, obj, function(result) {
     var body = result.body;
     body.type = 'Program';
