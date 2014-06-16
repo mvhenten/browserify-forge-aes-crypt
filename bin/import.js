@@ -121,48 +121,59 @@ function transform(obj, moduleName) {
     });
 }
 
+/**
+ * Find a node matching the "query" and return it as soon as possible.
+ */
 function search(query, obj, found) {
-    _.each(obj, function(value) {
-        if (typeof value !== 'object' || !value) return;
+    var keys = _.keys(obj);
+
+    for (var i = 0; i < keys.length; i++) {
+        var value = obj[keys[i]];
+
+        if (typeof value !== 'object' || !value) continue;
 
         if (value.type === query.type && value.id && value.id.name === query.name) {
-            return found(value);
+            return obj;
         }
 
-        search(query, value, found);
-    });
+        found = search(query, value, found);
+
+        if (found) return found;
+    }
+
+    return found;
 }
 
-var query = {
-    type: 'FunctionDeclaration',
-    name: 'initModule'
-};
+function run(ast, moduleName, target) {
+    var code, query = {
+        type: 'FunctionDeclaration',
+        name: 'initModule'
+    };
 
-/**
- * First, find the function initModule. We'll only use the body of this function.
- */
-search(query, obj, function(result) {
-    var body = result.body,
-        code;
+    /**
+     * First, find the function initModule. We'll only use the body of this function.
+     */
+    var initModule = search(query, ast);
 
-    // set the body type to program
-    // so escodegen considers this a top-level
-    // code block
-    body.type = 'Program';
+    ast = initModule[0].body;
+
+    // Force the body type to program
+    // so escodegen considers this a top-level code block
+    ast.type = 'Program';
 
     // transform changes the AST IN PLACE
-    transform(body, MODULE_NAME);
+    transform(ast, moduleName);
 
-    code = escodegen.generate(body);
+    code = escodegen.generate(ast);
 
     /**
      * cipher.modes is missing due a missing module.export in cipherModes
      * and a missing export in cipher
      */
-    if (MODULE_NAME === 'cipher') {
+    if (moduleName === 'cipher') {
         code = code + '\nmodule.exports.modes = require(\'./cipherModes\')';
     }
-    if (MODULE_NAME === 'cipherModes') {
+    if (moduleName === 'cipherModes') {
         code = code + '\nmodule.exports = modes;';
     }
 
@@ -170,5 +181,7 @@ search(query, obj, function(result) {
     // adding it back in.
     code = '/' + obj.comments[0].value + '*/\n' + code;
 
-    fs.writeFileSync(TARGET, code);
-});
+    fs.writeFileSync(target, code);
+}
+
+run(obj, MODULE_NAME, TARGET);
