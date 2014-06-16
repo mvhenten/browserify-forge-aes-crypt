@@ -21,7 +21,9 @@ if (MODULE_NAME == 'pbkdf2') {
     src = src.replace('var pkcs5 = forge.pkcs5 = forge.pkcs5 || {};', 'var pkcs5 = {}');
 }
 
-var obj = esp.parse(src);
+var obj = esp.parse(src, {
+    comment: true
+});
 
 function mkRequire(name) {
     return {
@@ -144,7 +146,7 @@ search(query, obj, function(result) {
         code;
 
     // set the body type to program
-    // so esprima considers this a top-level
+    // so escodegen considers this a top-level
     // code block
     body.type = 'Program';
 
@@ -163,6 +165,10 @@ search(query, obj, function(result) {
     if (MODULE_NAME === 'cipherModes') {
         code = code + '\nmodule.exports = modes;';
     }
+
+    // first comment block is the copyright block
+    // adding it back in.
+    code = '/' + obj.comments[0].value + '*/\n' + code;
 
     fs.writeFileSync(TARGET, code);
 });
