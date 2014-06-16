@@ -5,6 +5,8 @@
     "unused": true,
     "strict": true,
     "globals": {
+	"describe": true,
+	"it": true,
         "test": true,
         "suite": true,
         "setup": true,
