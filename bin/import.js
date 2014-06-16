@@ -158,6 +158,8 @@ function run(ast, moduleName, target) {
      */
     var initModule = search(query, ast);
 
+    if( ! initModule ) return console.log('NO initModule found, cannot transform %s', moduleName );
+
     body = initModule[0].body;
 
     // Force the body type to program
