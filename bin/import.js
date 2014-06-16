@@ -16,6 +16,11 @@ var src = fs.readFileSync(SOURCE);
 // hacky fix: remove references to forge.disableNativeCode
 src = src.toString().replace(/[!]?forge.disableNativeCode\s(&&|\|\|)/, '');
 
+// another pre-processing hack
+if (MODULE_NAME == 'pbkdf2') {
+    src = src.replace('var pkcs5 = forge.pkcs5 = forge.pkcs5 || {};', 'var pkcs5 = {}');
+}
+
 var obj = esp.parse(src);
 
 function mkRequire(name) {
@@ -135,10 +140,26 @@ var query = {
  * First, find the function initModule. We'll only use the body of this function.
  */
 search(query, obj, function(result) {
-    var body = result.body;
+    var body = result.body,
+        code;
     body.type = 'Program';
 
     transform(body, MODULE_NAME);
 
-    fs.writeFileSync(TARGET, escodegen.generate(body));
+    code = escodegen.generate(body);
+
+    console.log(MODULE_NAME);
+
+    /**
+     * cipher.modes is missing due a missing module.export in cipherModes
+     * and a missing export in cipher
+     */
+    if (MODULE_NAME === 'cipher') {
+        code = code + '\nmodule.exports.modes = require(\'./cipherModes\')';
+    }
+    if (MODULE_NAME === 'cipherModes') {
+        code = code + '\nmodule.exports = modes;';
+    }
+
+    fs.writeFileSync(TARGET, code);
 });
