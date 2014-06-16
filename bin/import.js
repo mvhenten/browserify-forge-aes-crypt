@@ -142,13 +142,16 @@ var query = {
 search(query, obj, function(result) {
     var body = result.body,
         code;
+
+    // set the body type to program
+    // so esprima considers this a top-level
+    // code block
     body.type = 'Program';
 
+    // transform changes the AST IN PLACE
     transform(body, MODULE_NAME);
 
     code = escodegen.generate(body);
-
-    console.log(MODULE_NAME);
 
     /**
      * cipher.modes is missing due a missing module.export in cipherModes
