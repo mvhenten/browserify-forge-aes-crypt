@@ -11,21 +11,8 @@ var SOURCE = process.argv[2],
 
 var MODULE_NAME = path.basename(TARGET).replace(path.extname(TARGET), '');
 
-var src = fs.readFileSync(SOURCE);
 
-// hacky fix: remove references to forge.disableNativeCode
-src = src.toString().replace(/[!]?forge.disableNativeCode\s(&&|\|\|)/, '');
-
-// another pre-processing hack
-if (MODULE_NAME == 'pbkdf2') {
-    src = src.replace('var pkcs5 = forge.pkcs5 = forge.pkcs5 || {};', 'var pkcs5 = {}');
-}
-
-var obj = esp.parse(src, {
-    comment: true
-});
-
-function mkRequire(name) {
+function _mkRequire(name) {
     return {
         type: 'CallExpression',
         callee: {
@@ -40,7 +27,7 @@ function mkRequire(name) {
     };
 }
 
-function mkVar(obj, name, right) {
+function _mkVar(obj, name, right) {
     obj.type = 'VariableDeclaration';
     obj.kind = 'var';
     obj.declarations = [{
@@ -53,12 +40,12 @@ function mkVar(obj, name, right) {
     }];
 }
 
-function mkModuleExports(value) {
+function _mkModuleExports(value) {
     value.object.name = 'module';
     value.property.name = 'exports';
 }
 
-function transform(obj, moduleName) {
+function _transform(obj, moduleName) {
     _.each(obj, function(value, key) {
         if (typeof value !== 'object' || !value) return;
 
@@ -77,8 +64,8 @@ function transform(obj, moduleName) {
 
             if (value.left.type == 'MemberExpression' && value.left.object.name == 'forge') {
                 if (value.left.property.name !== moduleName) {
-                    mkVar(obj, value.left.property.name, value.right);
-                    transform(value.right, moduleName);
+                    _mkVar(obj, value.left.property.name, value.right);
+                    _transform(value.right, moduleName);
                     return;
                 }
             }
@@ -91,7 +78,7 @@ function transform(obj, moduleName) {
                     name: name == moduleName ? 'module.exports' : name
                 };
 
-                transform(value, moduleName);
+                _transform(value, moduleName);
                 return;
             }
         }
@@ -102,7 +89,7 @@ function transform(obj, moduleName) {
          * simply walk it's elements and return.
          */
         if (value.type !== 'MemberExpression' || (value.object && value.object.name !== 'forge'))
-            return transform(value, moduleName);
+            return _transform(value, moduleName);
 
         /**
          * 3. This must be a MemberExpression. Check if we're trying to get an object property
@@ -113,10 +100,10 @@ function transform(obj, moduleName) {
         if (value.property.type === 'Identifier') {
             if (key == 'left' || key == 'object') {
                 if (value.property.name == moduleName)
-                    return mkModuleExports(value);
+                    return _mkModuleExports(value);
             }
 
-            obj[key] = mkRequire(value.property.name);
+            obj[key] = _mkRequire(value.property.name);
         }
     });
 }
@@ -144,8 +131,24 @@ function search(query, obj, found) {
     return found;
 }
 
+function _getAst(source, moduleName) {
+    var src = fs.readFileSync(source);
+
+    // hacky fix: remove references to forge.disableNativeCode
+    src = src.toString().replace(/[!]?forge.disableNativeCode\s(&&|\|\|)/, '');
+
+    // another pre-processing hack
+    if (moduleName == 'pbkdf2') {
+        src = src.replace('var pkcs5 = forge.pkcs5 = forge.pkcs5 || {};', 'var pkcs5 = {}');
+    }
+
+    return esp.parse(src, {
+        comment: true
+    });
+}
+
 function run(ast, moduleName, target) {
-    var code, query = {
+    var code, body, query = {
         type: 'FunctionDeclaration',
         name: 'initModule'
     };
@@ -155,16 +158,16 @@ function run(ast, moduleName, target) {
      */
     var initModule = search(query, ast);
 
-    ast = initModule[0].body;
+    body = initModule[0].body;
 
     // Force the body type to program
     // so escodegen considers this a top-level code block
-    ast.type = 'Program';
+    body.type = 'Program';
 
-    // transform changes the AST IN PLACE
-    transform(ast, moduleName);
+    // _transform changes the AST IN PLACE
+    _transform(body, moduleName);
 
-    code = escodegen.generate(ast);
+    code = escodegen.generate(body);
 
     /**
      * cipher.modes is missing due a missing module.export in cipherModes
@@ -179,9 +182,9 @@ function run(ast, moduleName, target) {
 
     // first comment block is the copyright block
     // adding it back in.
-    code = '/' + obj.comments[0].value + '*/\n' + code;
+    code = '/' + ast.comments[0].value + '*/\n' + code;
 
     fs.writeFileSync(target, code);
 }
 
-run(obj, MODULE_NAME, TARGET);
+run(_getAst(SOURCE, MODULE_NAME), MODULE_NAME, TARGET);
